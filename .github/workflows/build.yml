@@ -1,0 +1,50 @@
+name: Build Kernel with KernelSU
+
+on:
+  push:
+    branches: [ lineage-22.2 ]  # 监听该分支的推送事件
+  pull_request:
+    branches: [ lineage-22.2 ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04  # 使用Ubuntu 22.04环境
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Set up build environment
+      run: |
+        sudo apt update
+        # 安装编译依赖（根据内核需求调整）
+        sudo apt install -y gcc-aarch64-linux-gnu build-essential bc bison flex libssl-dev libncurses5-dev crossbuild-essential-arm64
+
+    - name: Integrate KernelSU
+      run: |
+        # 执行之前创建的集成脚本
+        chmod +x scripts/ksu-setup.sh
+        ./scripts/ksu-setup.sh
+
+    - name: Build kernel
+      run: |
+        # 设置交叉编译工具链
+        export ARCH=arm64
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        # 加载设备配置
+        make lineageos_pdx234_defconfig  # 替换为你的设备配置文件名
+        # 编译（-j4 表示4线程，可根据GitHub Actions资源调整）
+        make -j4 Image.gz dtbo.img
+        # 编译模块（若需要）
+        make modules
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-output
+        path: |
+          arch/arm64/boot/Image.gz
+          arch/arm64/boot/dtbo.img
+          drivers/*/*.ko  # 若有模块输出
